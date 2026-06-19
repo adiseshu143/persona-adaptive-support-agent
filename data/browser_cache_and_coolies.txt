@@ -1,0 +1,26 @@
+Browser Cache and Cookies Troubleshooting
+
+This guide helps users resolve loading and session issues in the web application.
+
+Common Symptoms
+- Dashboard not loading
+- Endless spinner
+- Buttons not responding
+- Repeated sign-out
+- Old data still displayed
+
+Recommended Steps
+1. Refresh the page using a hard reload.
+2. Clear browser cache and cookies for the application domain.
+3. Sign out and sign in again.
+4. Try the application in an incognito or private browser window.
+5. Disable browser extensions that block scripts or cookies.
+6. Confirm that JavaScript is enabled in the browser.
+
+Supported Browsers
+- Google Chrome latest version
+- Microsoft Edge latest version
+- Mozilla Firefox latest version
+- Safari latest version
+
+If the issue remains after clearing cache and cookies, contact support with the browser name, version, and screenshots.

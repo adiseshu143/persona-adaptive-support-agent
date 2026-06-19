@@ -1,0 +1,41 @@
+SUBSCRIPTION UPGRADE AND DOWNGRADE POLICY
+
+1. Upgrading a Plan
+Upgrades (e.g. Starter to Pro, Pro to Enterprise) take effect immediately
+upon confirmation. You are charged a prorated amount for the remainder of
+the current billing cycle at the new plan's rate, calculated automatically
+at checkout.
+
+2. Downgrading a Plan
+Downgrades take effect at the start of the next billing cycle, not
+immediately. This avoids losing access to features you've already paid
+for in the current cycle. No partial refund is issued for the unused
+portion of the higher-tier plan.
+
+3. Feature Access During Transition
+When a downgrade is scheduled, you retain full access to your current
+plan's features until the transition date shown in Billing > Subscription.
+After transition, any data or configuration exceeding the lower plan's
+limits (e.g. seat count, storage) is not deleted but becomes read-only
+until brought within the new plan's limits or the plan is upgraded again.
+
+4. Cancelling a Scheduled Downgrade
+A scheduled downgrade can be cancelled anytime before the transition date
+from Billing > Subscription > Cancel Scheduled Change.
+
+5. Seat-Based Plans
+Adding seats mid-cycle is billed as a prorated upgrade. Removing seats
+takes effect at the next renewal, consistent with the downgrade policy
+above — seats cannot be removed for an immediate partial refund.
+
+6. Enterprise Custom Contracts
+Enterprise customers with a signed order form follow the upgrade/downgrade
+terms specified in that contract, which may differ from the self-service
+policy above (for example, fixed-term commitments with no mid-term
+downgrade option). Always check the signed order form first for
+Enterprise accounts.
+
+7. Switching Between Monthly and Annual Billing
+Switching from monthly to annual billing is treated as an upgrade and
+takes effect immediately with proration. Switching from annual to monthly
+takes effect at the next renewal date.

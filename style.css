@@ -1,0 +1,385 @@
+/* ==========================================================================
+   Persona-Adaptive Support Agent — Visual System
+   Direction: classic enterprise support desk. Deep ink-navy, brass/gold
+   accent, warm paper canvas, hairline rules instead of soft shadows/blur.
+   Deliberately avoids the generic "AI dashboard" look (no glassmorphism,
+   no neon-on-black, no rounded glossy cards).
+   ========================================================================== */
+
+@import url('https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,400;8..60,600;8..60,700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap');
+
+:root{
+  --ink-navy: #14213D;
+  --ink-navy-light: #1F3158;
+  --paper: #F7F5EF;
+  --paper-card: #FFFFFF;
+  --rule: #D8D2C2;
+  --brass: #B8893B;
+  --brass-deep: #93672A;
+  --text-primary: #232323;
+  --text-muted: #6B6B63;
+  --tech: #3D5A80;
+  --frustrated: #B5482A;
+  --executive: #7A6A2E;
+  --ok: #3F7D58;
+  --danger: #A8323A;
+}
+
+html, body, [class*="css"]  {
+  font-family: 'Inter', -apple-system, sans-serif;
+  color: var(--text-primary);
+}
+
+.stApp {
+  background: var(--paper);
+}
+
+/* ---------- Header ---------- */
+.psa-header{
+  display:flex;
+  align-items:baseline;
+  justify-content:space-between;
+  border-bottom: 2px solid var(--ink-navy);
+  margin-bottom: 1.2rem;
+}
+.psa-header .brandblock{
+  display:flex;
+  align-items:baseline;
+  gap: 0.65rem;
+}
+.psa-title{
+  font-family:'Source Serif 4', serif;
+  font-weight:700;
+  font-size: 2.8rem;
+  color: var(--ink-navy);
+  letter-spacing: -0.01em;
+  margin:0;
+}
+.psa-eyebrow{
+  font-family:'IBM Plex Mono', monospace;
+  font-size: 0.68rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--brass-deep);
+  border: 1px solid var(--brass);
+  padding: 0.15rem 0.5rem;
+  border-radius: 2px;
+}
+.psa-header .meta{
+  font-family:'IBM Plex Mono', monospace;
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  text-align:right;
+}
+
+/* ---------- Section labels ---------- */
+.psa-section-label{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:24px;
+    font-weight:700;
+    letter-spacing:4px;
+    text-transform:uppercase;
+    color:#475569 !important;
+    margin-top:24px;
+    margin-bottom:10px;
+
+    padding-bottom:8px;
+
+    border-bottom:1px solid #CBD5E1;
+}
+
+/* ---------- Cards (flat, hairline-bordered, no blur) ---------- */
+.psa-card{
+  background: var(--paper-card);
+  border: 1px solid var(--rule);
+  border-radius: 3px;
+  padding: 1rem 1.1rem;
+  margin-bottom: 0.9rem;
+}
+.psa-card-title{
+  font-family:'Source Serif 4', serif;
+  font-weight:600;
+  font-size: 1.0rem;
+  color: var(--ink-navy);
+  margin: 0 0 0.5rem 0;
+}
+
+/* ---------- Persona badge ---------- */
+.psa-badge{
+  display:inline-flex;
+  align-items:center;
+  gap:0.4rem;
+  font-family:'IBM Plex Mono', monospace;
+  font-size: 0.72rem;
+  letter-spacing: 0.04em;
+  font-weight: 600;
+  padding: 0.28rem 0.65rem;
+  border-radius: 2px;
+  color: #fff;
+}
+.badge-tech{
+  background:#DBEAFE;
+  color:#1D4ED8;
+  border:1px solid #BFDBFE;
+}
+
+.badge-frustrated{
+  background:#FEE2E2;
+  color:#DC2626;
+  border:1px solid #FECACA;
+}
+
+.badge-executive{
+  background:#FEF3C7;
+  color:#B45309;
+  border:1px solid #FDE68A;
+}
+
+/* ---------- Confidence meter ---------- */
+.psa-meter-row{
+  display:flex; align-items:center; gap:0.6rem; margin: 0.35rem 0;
+}
+.psa-meter-track{
+  flex:1; height:6px; background: var(--rule); border-radius: 2px; overflow:hidden;
+}
+.psa-meter-fill{ height:100%; border-radius: 2px; }
+.psa-meter-label{
+  font-family:'IBM Plex Mono', monospace; font-size: 0.72rem; color: var(--text-muted); min-width: 38px; text-align:right;
+}
+
+/* ---------- Source chip ---------- */
+.psa-source{
+  border-left: 3px solid var(--ink-navy);
+  background: #FBFAF6;
+  padding: 0.5rem 0.7rem;
+  margin-bottom: 0.5rem;
+  font-size: 0.84rem;
+}
+.psa-source .fname{
+  font-family:'IBM Plex Mono', monospace;
+  font-size: 0.74rem;
+  color: var(--ink-navy);
+  font-weight: 600;
+}
+.psa-source .snippet{
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  margin-top: 0.25rem;
+}
+
+/* ---------- Escalation status ---------- */
+.psa-status{
+  display:inline-flex; align-items:center; gap:0.4rem;
+  font-family:'IBM Plex Mono', monospace; font-size: 0.74rem; font-weight:600;
+  padding: 0.25rem 0.6rem; border-radius: 2px;
+}
+.status-ok{ background: rgba(63,125,88,0.12); color: var(--ok); border:1px solid var(--ok); }
+.status-escalated{ background: rgba(168,50,58,0.10); color: var(--danger); border:1px solid var(--danger); }
+
+/* ---------- Divider ---------- */
+.psa-hr{ border:none; border-top: 1px solid var(--rule); margin: 0.8rem 0; }
+
+/* ---------- Chat bubbles override ---------- */
+[data-testid="stChatMessage"]{
+  border: 1px solid var(--rule);
+  border-radius: 3px;
+  background: var(--paper-card);
+}
+
+/* ---------- Sidebar ---------- */
+section[data-testid="stSidebar"]{
+  background:#F7F5EF !important;
+  border-right:1px solid #E5E7EB;
+}
+
+/* Sidebar text */
+section[data-testid="stSidebar"] *{
+  color:#1F2937 !important;
+}
+
+/* Brand section */
+.psa-brand{
+    text-align:left;
+    margin-bottom:30px;
+}
+
+.psa-brand-name{
+    font-size:2.2rem;
+    font-weight:800;
+    color:#0F172A !important;
+    letter-spacing:-1px;
+    margin-bottom:6px;
+}
+
+.psa-brand-sub{
+    font-size:1rem;
+    color:#64748B !important;
+}
+
+section[data-testid="stSidebar"] .psa-brand-mark{
+  background:linear-gradient(
+      135deg,
+      #2563EB,
+      #1D4ED8
+  ) !important;
+
+  color:white !important;
+  border-radius:12px;
+  padding:10px;
+  font-weight:700;
+}
+
+/* Cards */
+section[data-testid="stSidebar"] .psa-card{
+  background:#F8FAFC !important;
+  border:1px solid #E2E8F0 !important;
+}
+
+/* Section labels */
+.psa-section-label{
+    font-size:0.72rem;
+    font-weight:700;
+    letter-spacing:3px;
+    text-transform:uppercase;
+
+    color:#64748B !important;
+
+    background:none;
+    border:none;
+
+    padding:0;
+    margin:22px 0 12px 0;
+}
+
+/* Divider */
+section[data-testid="stSidebar"] .psa-hr{
+  border-top:1px solid #E2E8F0 !important;
+}
+
+/* ---------- Buttons ---------- */
+.stButton button{
+  border-radius: 2px;
+  border: 1px solid var(--ink-navy);
+  font-family:'IBM Plex Mono', monospace;
+  font-size: 0.78rem;
+  letter-spacing: 0.03em;
+}
+
+/* ---------- JSON / code blocks ---------- */
+code, pre, .stCodeBlock{
+  font-family: 'IBM Plex Mono', monospace !important;
+}
+
+.psa-stat-tile {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 8px;
+    text-align: center;
+    padding-bottom:4px;
+}
+
+.psa-stat-value {
+    font-size: 16px;
+    font-weight: bold;
+}
+
+.psa-stat-label {
+    font-size: 16px;
+}
+
+/* Hide Deploy button only */
+[data-testid="stAppDeployButton"] {
+    display: none !important;
+}
+
+[data-testid="stToolbarActions"] {
+    display: none !important;
+}
+
+/* Upload button container */
+[data-testid="stFileUploader"] {
+    margin: 0 !important;
+    padding: 0 !important;
+}
+
+/* Align upload button with input */
+.stColumn:first-child {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* Chat input alignment */
+[data-testid="stChatInput"] {
+    margin-top: 0 !important;
+}
+
+.chat-bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+}
+
+.chat-input {
+    flex: 1;
+    font-size:24px;
+}
+
+/* Text user types */
+input[type="text"] {
+    font-size: 20px !important;
+    font-weight: 500;
+}
+
+/* Placeholder text */
+input[type="text"]::placeholder {
+    font-size: 20px !important;
+    color: #8a8a8a !important;
+    opacity: 1;
+}
+
+/* ==========================================================================
+   Typing indicator — animated dots, ChatGPT-style
+   ========================================================================== */
+
+@keyframes typing-bounce {
+  0%, 60%, 100% {
+    transform: translateY(0);
+    opacity: 0.35;
+  }
+  30% {
+    transform: translateY(-6px);
+    opacity: 1;
+  }
+}
+
+.typing-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 2px;
+}
+
+.typing-indicator span {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: var(--ink-navy);
+  opacity: 0.35;
+  animation: typing-bounce 1.2s ease-in-out infinite;
+}
+
+.typing-indicator span:nth-child(1) {
+  animation-delay: 0s;
+}
+
+.typing-indicator span:nth-child(2) {
+  animation-delay: 0.2s;
+}
+
+.typing-indicator span:nth-child(3) {
+  animation-delay: 0.4s;
+}

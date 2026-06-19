@@ -1,0 +1,44 @@
+REFUND POLICY
+
+1. Eligibility Window
+New subscriptions are eligible for a full refund within 14 days of the
+initial purchase, no reason required. This applies to first-time
+purchases only, not renewals.
+
+2. Renewal Refunds
+Refund requests for an annual renewal must be submitted within 7 days of
+the renewal charge. Requests made after 7 days are evaluated case-by-case
+based on actual product usage during the renewal period.
+
+3. Partial Usage
+If significant usage occurred during the eligibility window (for example,
+heavy API consumption or data export on an annual plan), a prorated
+refund may be issued instead of a full refund, at our discretion.
+
+4. Non-Refundable Items
+- Add-on credits that have already been consumed
+- Custom onboarding or professional services fees
+- Enterprise contracts with negotiated non-refundable terms specified in
+  the signed order form
+
+5. How to Request a Refund
+Refund requests must be submitted through Billing > Request Refund, or by
+contacting support with the invoice number and reason. Refund requests are
+never processed instantly by an automated agent — every refund request
+requires manual review by the billing team to confirm eligibility and
+prevent fraud, even when the request appears straightforward.
+
+6. Processing Time
+Approved refunds are issued to the original payment method within 5-10
+business days, depending on the card issuer or bank.
+
+7. Disputed or Duplicate Charges
+If you believe you were charged twice for the same billing period, this is
+treated as a billing dispute rather than a standard refund request, and
+must be escalated with both transaction IDs for the finance team to
+reconcile against the payment processor.
+
+8. Downgrades vs. Refunds
+Switching to a lower-tier plan is a downgrade, not a refund. Downgrades
+take effect at the next billing cycle with no partial-period refund for
+the difference (see Billing Policy, Section 5).

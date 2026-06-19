@@ -1,0 +1,20 @@
+Subscription Upgrade and Downgrade Guide
+
+Customers may change their subscription plan from the billing settings page.
+
+Upgrade Process
+1. Open Billing Settings.
+2. Select Change Plan.
+3. Choose a higher plan.
+4. Review prorated billing details.
+5. Confirm the change.
+
+Downgrade Process
+1. Open Billing Settings.
+2. Select Change Plan.
+3. Choose a lower plan.
+4. Review feature access changes.
+5. Confirm the change.
+
+Notes
+Downgrades may apply at the next billing cycle depending on the subscription policy.

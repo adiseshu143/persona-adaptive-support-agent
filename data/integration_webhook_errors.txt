@@ -1,0 +1,20 @@
+Integration and Webhook Error Guide
+
+This guide covers common integration failures between the platform and external systems.
+
+Common Symptoms
+- Webhook delivery failed
+- HTTP 400 or 500 response from receiver
+- Timeout during event delivery
+- Signature validation failed
+
+Troubleshooting Steps
+1. Confirm the webhook endpoint URL is reachable.
+2. Verify that the receiving service returns a 2xx status code.
+3. Check whether the webhook secret is correct.
+4. Validate request signature logic on the receiver side.
+5. Review timeout and retry behavior in the integration settings.
+6. Inspect server logs for rejected payloads.
+
+Recommended Support Data
+When contacting support, include request IDs, timestamps, endpoint URL, and error logs.
