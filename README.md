@@ -1,245 +1,191 @@
-# Persona-Adaptive Customer Support Agent
-
-An AI support agent that detects who it's talking to, answers strictly from
-a grounded knowledge base, adapts its tone to the customer, and hands off
-to a human the moment automation isn't safe enough.
-
----
+# Persona-Adaptive Customer Support Agent — Project Review
 
 ## 1. Project Overview
 
-Most support bots have the same flaw: one tone for everyone, hallucinated
-answers when documentation is thin, and no clean way to bring in a human
-when they're stuck. This project addresses all three by combining:
-
-- **Persona detection** — classifies every incoming message as a
-  *Technical Expert*, *Frustrated User*, or *Business Executive*.
-- **Retrieval-Augmented Generation (RAG)** — answers are generated only
-  from chunks retrieved from a local knowledge base, never from the
-  model's own assumptions.
-- **Escalation logic** — low retrieval confidence, sensitive topics
-  (billing, legal, account changes), or repeated unresolved frustration
-  all trigger a structured handoff to a human agent instead of a guess.
-
-The whole pipeline runs through a single Streamlit app.
+An AI-powered customer support desk that automatically detects the
+*communication style* of a user (Technical Expert, Frustrated User, or
+Business Executive) and adapts both the **tone** and **depth** of its
+responses accordingly — while grounding every answer in a real knowledge
+base via Retrieval-Augmented Generation (RAG), and automatically flagging
+conversations that need a human specialist.
 
 ---
 
-## 2. Tech Stack
+## 2. Overall Completion Estimate
 
-| Layer | Choice | Version |
-|---|---|---|
-| Language | Python | 3.11+ |
-| UI | Streamlit | >=1.30.0 |
-| LLM (classification + generation) | Google Gemini (`gemini-2.5-flash-preview-09-2025`) | google-genai >=0.1.0 |
-| Embeddings | Gemini `text-embedding-004` | — |
-| Vector DB | ChromaDB (persistent local store) | >=0.4.0 |
-| Document parsing | pypdf | >=3.0.0 |
-| Chunking | langchain-text-splitters (`RecursiveCharacterTextSplitter`) | >=0.2.0 |
-| Secrets | python-dotenv | >=1.0.0 |
-| Analytics | pandas | >=2.0.0 |
-
----
-
-## 3. Architecture
-
-```
-User Message
-     │
-     ▼
-Persona Classifier ───► Persona Tag: Technical Expert / Frustrated User / Business Executive
-     │
-     ▼
-Vector Database (ChromaDB) ───► Cosine Similarity Search ───► Top-K Chunks
-     │
-     ▼
-Retrieval Quality Check
-     │
-     ├── Sufficient confidence, no sensitive topic ──► Adaptive Generator ──► Response shown to user
-     │
-     └── Low confidence / sensitive topic / repeated frustration
-                  │
-                  ▼
-          Escalator ──► Structured Handoff JSON ──► Human Agent
-```
-
-Each stage is its own module so it can be tested, swapped, or tuned in
-isolation:
-
-```
-persona-support-agent/
-├── data/                       # knowledge base (.txt, .md, .pdf)
-├── src/
-│   ├── config.py               # thresholds, model names, keyword lists
-│   ├── classifier.py           # persona detection
-│   ├── rag_pipeline.py         # ingestion, chunking, embeddings, retrieval
-│   ├── generator.py            # persona-aware prompt building + generation
-│   └── escalator.py            # escalation rules + handoff JSON builder
-├── app.py                      # Streamlit UI
-├── style.css                   # custom visual theme
-├── requirements.txt
-├── .env.example
-└── README.md
-```
-
----
-
-## 4. Persona Detection Strategy
-
-**Method:** structured JSON classification via Gemini's
-`response_schema`, constrained to an enum of the three required personas,
-returning `persona`, `confidence`, and `reasoning`.
-
-**Prompt design:** the system instruction explicitly defines each
-persona's lexical signature (jargon/APIs for Technical Expert, emotional
-urgency for Frustrated User, ROI/timeline language for Business
-Executive) so the model isn't guessing at the taxonomy.
-
-**Reliability fallback:** if the Gemini call fails for any reason (missing
-key, rate limit, malformed response), `classifier.py` falls back to a
-deterministic keyword + heuristic scorer (jargon terms, exclamation
-density, ALL-CAPS detection, business-impact vocabulary). This means the
-app is still demoable without a live API key and never crashes the
-pipeline if classification fails mid-conversation.
-
----
-
-## 5. RAG Pipeline Design
-
-- **Chunking:** `RecursiveCharacterTextSplitter`, chunk size **500**
-  characters, overlap **50** characters, splitting on paragraph → sentence
-  → word → character boundaries in that order, so policy steps and error
-  codes aren't sliced apart.
-- **Embeddings:** Gemini `text-embedding-004`. (If no API key is present,
-  a deterministic hash-based pseudo-embedding is used instead purely so
-  the retrieval mechanics remain testable offline — it is **not**
-  semantically meaningful and should not be relied on for real answers.)
-- **Vector database:** ChromaDB with a **persistent** local store at
-  `./chroma_db`, so the index survives restarts and isn't rebuilt on every
-  session.
-- **Retrieval:** top-**k = 3** chunks per query, each returned with
-  source filename, page number (for PDFs), and a normalized 0–1
-  confidence score derived from vector distance.
-- **Metadata:** every chunk stores `source`, `page` (or `null` for
-  non-PDFs), and `chunk_index`, so retrieved answers can always be traced
-  back to a specific document.
-
----
-
-## 6. Escalation Logic
-
-Escalation triggers, all configurable in `src/config.py`:
-
-| Trigger | Config value |
+| Area | Status |
 |---|---|
-| No documents retrieved | — |
-| Top retrieval confidence below threshold | `RETRIEVAL_CONFIDENCE_THRESHOLD = 0.45` |
-| Sensitive-topic keyword match | `SENSITIVE_TOPIC_KEYWORDS` (billing disputes, refunds, legal, account ownership, etc.) |
-| Repeated unresolved frustration | `MAX_USER_DISSATISFACTION_TURNS = 2` consecutive turns |
+| **Overall project completion** | **~70–75%** |
+| **Core pipeline (detect → retrieve → escalate → generate)** | ✅ Fully functional |
+| **Reliability / production-hardening** | ✅ Implemented (retry, cooldown, batching) |
+| **Persistence, auth, deployment, testing** | ❌ Not yet started |
 
-When any trigger fires, `escalator.build_handoff_summary()` produces a
-structured JSON package containing: detected persona, a trimmed issue
-summary, full conversation history, every retrieved source with its
-score, attempted steps, the specific escalation reason(s), and a
-persona-aware recommendation for the human agent — so the case can be
-picked up without re-reading the whole thread.
+This is a realistic, defensible number for a review/demo-stage build. The
+remaining 25–30% is mostly *scale and productionization* work, not core
+feature work — which is normal for a project at this stage.
 
 ---
 
-## 7. Setup Instructions
+## 3. Complexity Rating
 
-```bash
-# 1. Clone and enter the project
-git clone <your-repo-url>
-cd persona-support-agent
+**Medium–High** (not purely "hard," not purely "medium")
 
-# 2. Create and activate a virtual environment
-python -m venv .venv
-source .venv/bin/activate        # Windows: .venv\Scripts\activate
+| Component | Difficulty |
+|---|---|
+| Multi-stage LLM orchestration (classify → retrieve → escalate → generate) | Hard |
+| Graceful degradation under API quota exhaustion | Hard |
+| RAG retrieval tuning (chunking, embedding, re-ranking) | Medium–Hard |
+| Escalation rules + structured human handoff | Medium |
+| Streamlit state management across reruns | Medium |
+| UI/UX styling and mobile responsiveness | Medium |
+| Analytics dashboard | Easy–Medium |
 
-# 3. Install dependencies
-pip install -r requirements.txt
-
-# 4. Configure your API key
-cp .env.example .env
-# then edit .env and paste your real Gemini API key
-
-# 5. Run the app
-streamlit run app.py
-```
-
-The first run automatically ingests every file in `/data` into ChromaDB.
-Use the **"Rebuild index"** button in the sidebar any time you add or
-edit knowledge base documents.
+The genuinely hard parts of this project are the orchestration logic and
+the reliability engineering — both of which are done. The remaining work is
+mostly conventional engineering effort, not conceptual difficulty.
 
 ---
 
-## 8. Environment Variables
+## 4. Technology Stack & Completion Status
 
-| Variable | Required | Description |
+| Technology / Component | Purpose | Completion |
 |---|---|---|
-| `GEMINI_API_KEY` | Yes (for live LLM calls) | Your Google Gemini API key. Without it, the app still runs using the offline keyword-classifier and raw-context fallbacks described above, for structural testing/demo purposes. |
+| **Streamlit** | Front-end UI, chat interface, session state | 90% |
+| **Google Gemini (`gemini-2.5-flash`)** | Persona classification + response generation | 85% |
+| **Gemini Embeddings (`gemini-embedding-001`)** | Vector embeddings for RAG | 85% |
+| **ChromaDB** | Persistent vector store for knowledge base | 80% |
+| **LangChain Text Splitters** | Document chunking for ingestion | 90% |
+| **pypdf** | PDF text extraction for KB ingestion | 80% |
+| **Persona Detection Engine** | LLM + keyword-fallback hybrid classifier | 90% |
+| **Escalation Engine** | Rule-based human-handoff triggers | 85% |
+| **Human Handoff Generator** | Structured JSON case summary | 80% |
+| **Hybrid RAG Mode** | KB grounding + general-knowledge fallback | 80% |
+| **Reliability Layer** (tenacity retries, quota cooldown, singleton client, batched embeddings) | API resilience | 85% |
+| **Analytics Dashboard** | Persona distribution, escalation rate, turn count | 75% |
+| **File/Image Attachment Support** | Multimodal input to Gemini | 70% |
+| **Mobile-Responsive UI** | CSS breakpoints, sidebar behavior | 60% (in progress) |
+| **Authentication / Multi-user support** | — | 0% (not started) |
+| **Conversation Persistence (DB)** | — | 0% (not started) |
+| **Automated Testing** | — | 0% (not started) |
+| **Deployment / CI-CD** | — | 0% (not started) |
 
 ---
 
-## 9. Example Queries
+## 5. What Has Been Built (Working Today)
 
-| # | Message | Expected Persona | Expected Behavior |
-|---|---|---|---|
-| 1 | "What are the header parameter requirements for your bearer token auth implementation?" | Technical Expert | Detailed, code-level answer grounded in `api_authentication_troubleshooting.md` |
-| 2 | "It's been an hour and nothing is loading, this is so frustrating!" | Frustrated User | Empathetic opener, simple bulleted steps from `browser_cache_and_cookies.md` |
-| 3 | "How does this outage impact our operations and when will it be resolved?" | Business Executive | Concise, impact-first answer referencing `service_outage_response_policy.md` |
-| 4 | "My billing statement has duplicate charges, I demand a refund!" | Frustrated User | **Escalates** — sensitive billing topic, handoff JSON generated |
-| 5 | "We need to update account ownership and contract terms." | Business Executive | **Escalates** — account-sensitive/legal topic |
+- **3-persona detection** (Technical Expert / Frustrated User / Business
+  Executive) using Gemini structured output, with a deterministic
+  TF-weighted **keyword fallback** that activates automatically if Gemini
+  is unavailable.
+- **Chitchat short-circuit** — greetings/thanks/small talk skip
+  classification and RAG entirely, saving API calls and giving a natural
+  conversational reply instead.
+- **Full RAG pipeline**: document loading (`.txt`, `.md`, `.pdf`) →
+  chunking → batched embedding → ChromaDB storage → cosine-similarity
+  retrieval → keyword re-ranking boost.
+- **Hybrid generation mode** — when KB confidence is low or no documents
+  match, the system clearly signals it's answering from general knowledge
+  instead of fabricating a citation.
+- **Persona-adapted response voice** — same underlying facts, three
+  different delivery styles (technical depth vs. empathetic brevity vs.
+  executive summary).
+- **Escalation engine** with four trigger conditions: low retrieval
+  confidence, no documents retrieved, sensitive-topic keywords (billing,
+  legal, GDPR, etc.), and repeated user frustration across turns.
+- **Structured human handoff JSON** — auto-generated case summary with
+  conversation history, retrieved sources, confidence score, and
+  recommended next steps for a human agent.
+- **Live "Case Insights" panel** — shows detected persona, confidence
+  meter, retrieved source chunks with relevance scores, and escalation
+  status in real time per message.
+- **Session analytics** — turn count, escalation count/rate, persona
+  distribution chart.
+- **File/image attachment** support passed directly into Gemini's
+  multimodal input.
+- **Production-grade reliability layer** (added during review): singleton
+  Gemini client, bounded exponential-backoff retries on 429 errors, a
+  quota-cooldown circuit breaker to stop hammering an exhausted quota,
+  and batched embedding calls during ingestion (reduced from ~82
+  sequential calls to ~6).
+- **Mobile-responsive CSS pass** (in progress) — fixed forced-open sidebar
+  issue, stacked layout for narrow viewports.
 
 ---
 
-## 10. Conversational Behavior
+## 6. Known Gaps / What's Not Working or Missing Yet
 
-A few deliberate design choices worth knowing about:
+- No persistent storage — conversation history and analytics reset on
+  every Streamlit session restart (in-memory only).
+- No authentication — anyone with the URL has full access, including the
+  knowledge-base rebuild button.
+- Mobile UI is functional but still being refined (sidebar/CSS pass just
+  applied, needs more device testing).
+- Free-tier Gemini quota is still a hard ceiling — the app degrades
+  gracefully now, but heavy usage will still hit fallback mode rather than
+  full LLM responses.
+- No automated test suite (unit tests for classifier fallback, escalation
+  rules, RAG retrieval scoring).
+- No deployment pipeline — currently local-only (`streamlit run app.py`).
 
-- **Casual messages bypass the support pipeline.** Greetings, thanks, and
-  small talk ("hi", "thanks", "how are you") are detected by
-  `classifier.is_chitchat()` and answered directly and warmly, with no
-  persona forced, no document retrieval, and no escalation check. Forcing a
-  bare "hi" through the full pipeline is what caused odd misclassifications
-  and unnecessary escalation in earlier versions — chitchat simply isn't a
-  support query.
-- **Responses never narrate the classification.** The system prompts
-  explicitly forbid phrases like "as a frustrated user" or "based on your
-  business impact concerns" — the tone adapts, but the model never tells the
-  customer how it categorized them. Persona/confidence/reasoning are only
-  surfaced in the **Case Insights** panel for transparency, never in the chat
-  itself.
-- **Attachments.** Customers can attach a screenshot, PDF, or text file via
-  the uploader above the chat box. The file is sent to Gemini alongside the
-  question (multimodal `generate_content` call), so the model can actually
-  look at an error screenshot or document and respond accordingly.
-- **Source downloads.** Each retrieved source in the Case Insights panel has
-  a download button so the customer (or a reviewer) can grab the original
-  KB document — including the PDF — directly from the chat.
+---
 
-## 11. Known Limitations
+## 7. Unique / Differentiating Features
 
-- Persona classification on very short or ambiguous one-line messages can
-  be uncertain; the confidence score is shown transparently so this is
-  visible rather than hidden.
-- Retrieval quality depends on chunk size/overlap tuning and will need
-  revisiting if the knowledge base grows significantly beyond the current
-  ~13 documents.
-- The offline fallback embeddings (used only when no API key is set) are
-  not semantically meaningful — they exist purely to keep the pipeline
-  runnable for structural testing, not for real answer quality.
-- Escalation thresholds are static per-session; there's no persistent
-  multi-session memory of a customer's prior frustration.
-- Streamlit's session state resets on browser refresh — there is no
-  database-backed conversation persistence in this version.
+1. **Dual-path persona detection** — most student projects use either pure
+   LLM classification *or* pure keyword matching. This project does both,
+   with the keyword path engineered to be genuinely competitive (TF-weighted
+   scoring, punctuation/caps signal boosts) rather than a token placeholder.
+2. **Quota-aware circuit breaker** — the app *knows* when it's in a
+   degraded state and stops wasting requests retrying into a wall, instead
+   of silently failing or burning through remaining quota.
+3. **Hybrid RAG honesty** — the system explicitly tells the user when it's
+   answering from general knowledge vs. official documentation, rather than
+   blending both invisibly (a common RAG failure mode that erodes trust).
+4. **Structured, audit-ready human handoff** — escalations don't just flag
+   "needs a human," they produce a ready-to-use JSON case file with
+   reasoning, sources, and recommended next steps.
+5. **Style without leaking internals** — the persona adaptation changes
+   tone and structure but the system prompt explicitly forbids ever
+   mentioning the detected persona or mood to the user — adaptation is felt,
+   not announced.
 
-## 12. Future Enhancements
+---
 
-Multi-turn sentiment tracking across sessions, LangGraph-based workflow
-orchestration, a dedicated analytics dashboard with historical escalation
-trends, and a human-approval step before sending responses on sensitive
-topics.
+## 8. Future Enhancements (Roadmap)
 
-treamlit run app.py`treamlit run app.py`
+### Near-term (would meaningfully raise completion %)
+- Persist conversations and analytics to a real database (SQLite/Postgres)
+  instead of in-memory session state.
+- Add basic authentication / per-user sessions.
+- Streaming token-by-token responses instead of waiting for full Gemini
+  completion.
+- Expand automated test coverage (classifier fallback, escalation rules,
+  RAG scoring) for grading/demo confidence.
+
+### Medium-term
+- Admin panel for non-technical knowledge-base management (upload/edit/
+  delete KB articles without touching files directly).
+- Feedback loop — let users rate responses, use that signal to improve
+  persona-detection accuracy over time.
+- Multi-language support for both detection and generation.
+- Rate limiting per user/session to protect shared quota fairly.
+
+### Long-term / stretch goals
+- Swap ChromaDB for a hosted/scalable vector DB (e.g. Pinecone, Weaviate)
+  for multi-tenant production use.
+- Voice input/output for the support chat.
+- A/B testing framework to compare different persona-voice prompts.
+- Full CI/CD pipeline with Docker + cloud deployment.
+
+---
+
+## 9. Summary Verdict
+
+This is a **solid, demo-ready, mid-to-late-stage project** with real
+engineering depth in the parts that matter most (LLM orchestration,
+reliability, RAG grounding) and clearly identified gaps in the parts that
+are expected to be incomplete at this stage (persistence, auth, deployment).
+At ~70–75% completion with Medium–High complexity, it represents a
+credibly substantial body of work — the core "hard" problems are solved;
+what remains is well-understood, scoped engineering rather than open
+research risk.

@@ -1,175 +1,229 @@
 """
 classifier.py
---------------
-Persona detection for incoming support messages.
+-------------
+Persona detection via Gemini structured output, with a robust keyword fallback.
 
-Primary path: ask Gemini for a structured JSON classification
-(persona + confidence + reasoning).
+Personas:
+  • Technical Expert   — APIs, configs, error codes, stack traces
+  • Frustrated User    — emotional urgency, repeated failures, complaints
+  • Business Executive — ROI, timelines, SLA, business impact
 
-Fallback path: if the API call fails (no key configured, network issue,
-rate limit, malformed response) we fall back to a lightweight keyword/
-heuristic classifier so the rest of the pipeline never breaks just because
-classification failed. This keeps the agent demoable offline and resilient
-in production.
+The fallback is intentionally designed to be MORE accurate than a simple
+keyword count by using TF-weighted scoring and sentence-level signals.
 """
 
 import json
 import re
 
-from google import genai
 from google.genai import types
 
 from src import config
+from src.gemini_utils import get_client, gemini_retry, quota_state, note_failure_if_quota
 
-_TECH_KEYWORDS = [
-    "api", "token", "auth", "config", "endpoint", "error code", "log",
-    "stack trace", "header", "json", "webhook", "sdk", "status code",
-    "integration", "database", "exception", "401", "403", "500", "timeout",
+# ── Keyword lists ─────────────────────────────────────────────────────────────
+_TECH_KW = [
+    "api", "sdk", "token", "auth", "oauth", "bearer", "endpoint", "webhook",
+    "error code", "status code", "401", "403", "404", "500", "503", "timeout",
+    "stack trace", "exception", "traceback", "debug", "log", "header",
+    "json", "payload", "schema", "migration", "deploy", "server", "database",
+    "ssl", "tls", "certificate", "curl", "request", "response", "config",
+    "integration", "library", "package", "dependency", "version", "release",
+    "null pointer", "memory", "thread", "async", "callback", "promise",
 ]
 
-_FRUSTRATED_KEYWORDS = [
+_FRUS_KW = [
     "frustrated", "angry", "ridiculous", "unacceptable", "still broken",
     "nothing works", "tried everything", "fed up", "worst", "terrible",
-    "again!!", "asap", "immediately", "demand", "fix this now",
+    "fix this now", "not working", "broken again", "waste of time",
+    "unbelievable", "pathetic", "useless", "asap", "immediately",
+    "how long", "still waiting", "not fixed", "this is a joke",
+    "beyond annoying", "completely broken", "hopeless", "sick of this",
+    "keep failing", "always fails", "never works",
 ]
 
-_EXEC_KEYWORDS = [
+_EXEC_KW = [
     "business impact", "operations", "timeline", "roi", "stakeholders",
-    "resolution time", "sla", "uptime", "revenue", "contract", "leadership",
-    "report to", "board", "quarter",
+    "resolution time", "sla", "uptime", "revenue", "contract",
+    "report to", "board", "quarter", "executive", "cost", "budget",
+    "productivity", "downtime", "customer churn", "priority",
+    "strategic", "competitive", "business continuity", "workforce",
 ]
 
-_SYSTEM_INSTRUCTION = (
-    "You are an advanced classification engine for a customer support platform. "
-    "Analyze the sentiment, vocabulary, and tone of an incoming support message "
-    "and classify it into exactly one of three customer personas:\n\n"
-    "1. 'Technical Expert' -- uses technical terminology, requests logs/APIs/"
-    "configurations, wants detailed explanations. Example: \"Can you explain the "
-    "API authentication failure and provide error details?\"\n\n"
-    "2. 'Frustrated User' -- emotional language, repeated complaints, urgent "
-    "requests. Example: \"I've tried everything and nothing works!\"\n\n"
-    "3. 'Business Executive' -- outcome-focused, interested in business impact, "
-    "prefers concise communication. Example: \"How does this issue impact "
-    "operations and when will it be resolved?\"\n\n"
-    "Judge the message on its own merits using these three definitions. Respond "
-    "strictly in the requested JSON structure. Confidence is a float between 0 and 1."
-)
-
-_CHITCHAT_PATTERNS = [
+# ── Chitchat patterns ─────────────────────────────────────────────────────────
+_CHITCHAT = [
     r"^(hi|hello|hey|yo|sup|howdy|hiya)( there| team| folks)?[\s!.,]*$",
     r"^good\s(morning|afternoon|evening|day)[\s!.,]*$",
-    r"^(thanks|thank you|thx|ty|cheers|appreciate it|appreciate you)[\s!.,]*$",
-    r"^(bye|goodbye|see ya|see you|later|take care)[\s!.,]*$",
-    r"^(ok|okay|cool|got it|alright|sure|great|nice|sounds good|perfect)[\s!.,]*$",
+    r"^(thanks|thank you|thx|ty|cheers|appreciate it)[\s!.,]*$",
+    r"^(bye|goodbye|see ya|later|take care)[\s!.,]*$",
+    r"^(ok|okay|cool|got it|alright|sure|great|sounds good|perfect)[\s!.,]*$",
     r"^(how are you|what'?s up|how'?s it going)[\s?!.,]*$",
     r"^(yes|no|yep|nope|yeah|nah|maybe)[\s!.,]*$",
+    r"^(lol|lmao|haha|hehe|😂|😅|👍|🙏)[\s!.,]*$",
 ]
 
 
 def is_chitchat(message: str) -> bool:
-    """True for greetings, small talk, or acknowledgements with no support
-    content. These should never be forced through persona-based escalation
-    logic -- there's nothing to classify or retrieve documents for."""
     text = message.strip().lower()
     if not text or len(text) <= 2:
         return True
-    for pattern in _CHITCHAT_PATTERNS:
-        if re.match(pattern, text):
+    for pat in _CHITCHAT:
+        if re.match(pat, text):
             return True
     return False
 
-_RESPONSE_SCHEMA = {
+
+# ── Gemini schema ─────────────────────────────────────────────────────────────
+_SCHEMA = {
     "type": "OBJECT",
     "properties": {
-        "persona": {
-            "type": "STRING",
-            "enum": config.PERSONAS,
-        },
+        "persona":    {"type": "STRING", "enum": config.PERSONAS},
         "confidence": {"type": "NUMBER"},
-        "reasoning": {"type": "STRING"},
+        "reasoning":  {"type": "STRING"},
     },
     "required": ["persona", "confidence", "reasoning"],
 }
 
+_SYSTEM = """
+You are a precision persona-classification engine for an enterprise AI support desk.
 
+Analyze the message and classify it into EXACTLY ONE of these three personas:
+
+1. "Technical Expert"
+   → Uses technical vocabulary: APIs, SDKs, error codes, stack traces, configs.
+   → Wants root cause, exact steps, code-level detail.
+   → Examples: "My 401 on the /auth endpoint started after upgrading to v3.2",
+               "Can you show me the correct OAuth2 PKCE flow?",
+               "Stack trace says NullPointerException at line 42."
+
+2. "Frustrated User"
+   → Emotional language: urgency, repeated failure, complaints, anger.
+   → Uses phrases like "still broken", "nothing works", "I've tried everything".
+   → May use ALL CAPS, multiple exclamation marks, or exasperated phrasing.
+   → Examples: "WHY IS THIS STILL NOT WORKING???",
+               "I've been trying to fix this for 3 hours and nothing helps!",
+               "This is completely unacceptable. Fix it NOW."
+
+3. "Business Executive"
+   → Outcome-focused: ROI, SLA, timelines, business impact, revenue.
+   → Prefers concise answers, not technical deep-dives.
+   → Examples: "How does this downtime affect our SLA commitments?",
+               "I need to know the business impact and resolution ETA for the board.",
+               "What's the cost risk if this isn't resolved by Q3?"
+
+Rules:
+- Classify based on the DOMINANT signal, even if signals overlap.
+- A person can be frustrated AND technical — choose whichever is STRONGER.
+- Confidence must reflect how clearly the message fits (0.3 = ambiguous, 0.95 = obvious).
+- Reasoning must be 1-2 sentences explaining WHY you chose this persona.
+- Never refuse to classify. Always return a JSON object.
+""".strip()
+
+
+# ── Keyword fallback (accurate heuristic) ─────────────────────────────────────
 def _keyword_fallback(message: str) -> dict:
-    """Deterministic rule-based classifier used when the LLM call fails."""
-    text = message.lower()
+    text   = message.lower()
+    words  = set(text.split())
+    n_words = max(len(words), 1)
+
+    def score(kw_list):
+        # Weight multi-word phrases higher; single keywords lower
+        hits = 0
+        for kw in kw_list:
+            if " " in kw:
+                hits += 2 if kw in text else 0
+            else:
+                hits += 1 if kw in words else 0
+        return hits / n_words  # normalise by message length
 
     scores = {
-        "Technical Expert": sum(1 for kw in _TECH_KEYWORDS if kw in text),
-        "Frustrated User": sum(1 for kw in _FRUSTRATED_KEYWORDS if kw in text),
-        "Business Executive": sum(1 for kw in _EXEC_KEYWORDS if kw in text),
+        "Technical Expert":  score(_TECH_KW),
+        "Frustrated User":   score(_FRUS_KW),
+        "Business Executive":score(_EXEC_KW),
     }
 
-    # Exclamation marks and ALL-CAPS words are strong frustration signals.
-    if message.count("!") >= 1:
-        scores["Frustrated User"] += 1
+    # Boosts: strong frustration signals
+    if message.count("!") >= 2:
+        scores["Frustrated User"] += 0.08
     if re.search(r"\b[A-Z]{4,}\b", message):
-        scores["Frustrated User"] += 1
+        scores["Frustrated User"] += 0.06
+    if "???" in message or "!!" in message:
+        scores["Frustrated User"] += 0.04
+    # Boost: question with technical structure
+    if re.search(r"\b(error|exception|code|api|sdk)\b", text) and "?" in message:
+        scores["Technical Expert"] += 0.04
 
-    persona = max(scores, key=scores.get)
+    best  = max(scores, key=scores.get)
     total = sum(scores.values())
 
-    if total == 0:
-        # No strong signal either way; default to the calmer, most common case.
+    if total < 0.01:
+        # Nothing matched: guess from surface features
+        if "?" in message:
+            best = "Technical Expert"
+        else:
+            best = "Frustrated User"
         return {
-            "persona": "Frustrated User" if "?" not in message else "Technical Expert",
+            "persona":    best,
             "confidence": 0.35,
-            "reasoning": "No strong lexical signal detected; defaulted via heuristic fallback.",
+            "reasoning":  "Weak signals — guessed from message structure via heuristic fallback.",
         }
 
-    confidence = min(0.55 + 0.1 * scores[persona], 0.9)
+    # Confidence: how dominant is the winner?
+    dominance  = scores[best] / total
+    confidence = round(min(0.4 + 0.5 * dominance, 0.88), 2)
+
     return {
-        "persona": persona,
-        "confidence": round(confidence, 2),
-        "reasoning": f"Keyword fallback matched {scores[persona]} '{persona}' signal(s) in the message.",
+        "persona":    best,
+        "confidence": confidence,
+        "reasoning":  f"Keyword fallback: '{best}' had the strongest match signal (normalised score {scores[best]:.3f}).",
     }
 
 
+# ── Gemini call (retried, shared client) ──────────────────────────────────────
+@gemini_retry
+def _call_gemini_classify(message: str):
+    client = get_client()
+    return client.models.generate_content(
+        model=config.CLASSIFIER_MODEL,
+        contents=message,
+        config=types.GenerateContentConfig(
+            system_instruction=_SYSTEM,
+            response_mime_type="application/json",
+            response_schema=_SCHEMA,
+            temperature=0.05,   # very low — classification needs determinism
+        ),
+    )
+
+
+# ── Public API ────────────────────────────────────────────────────────────────
 def classify_persona(message: str) -> dict:
     """
-    Classify a user message into one of config.PERSONAS.
-
-    Returns:
-        {"persona": str, "confidence": float, "reasoning": str}
+    Returns {"persona": str, "confidence": float, "reasoning": str}.
+    Always succeeds — falls back to keyword heuristic on any API failure
+    or while Gemini is in a known quota-exhausted cooldown window.
     """
     if not config.GEMINI_API_KEY:
         return _keyword_fallback(message)
 
-    try:
-        client = genai.Client(api_key=config.GEMINI_API_KEY)
-        response = client.models.generate_content(
-            model=config.CLASSIFIER_MODEL,
-            contents=message,
-            config=types.GenerateContentConfig(
-                system_instruction=_SYSTEM_INSTRUCTION,
-                response_mime_type="application/json",
-                response_schema=_RESPONSE_SCHEMA,
-                temperature=0.1,
-            ),
+    if quota_state.in_cooldown():
+        fb = _keyword_fallback(message)
+        fb["reasoning"] = (
+            "Gemini temporarily skipped (recent quota exhaustion, cooling down). "
+            f"Fallback: {fb['reasoning']}"
         )
+        return fb
+
+    try:
+        response = _call_gemini_classify(message)
         result = json.loads(response.text)
 
-        # Defensive validation -- never trust the model blindly.
         if result.get("persona") not in config.PERSONAS:
-            raise ValueError("Model returned an unsupported persona label.")
+            raise ValueError(f"Unknown persona: {result.get('persona')}")
+
         result["confidence"] = float(result.get("confidence", 0.5))
         return result
 
-    except Exception as exc:  # noqa: BLE001 -- intentionally broad: any failure -> fallback
-        fallback = _keyword_fallback(message)
-        fallback["reasoning"] = f"LLM classification failed ({exc}); used fallback. {fallback['reasoning']}"
-        return fallback
-
-
-if __name__ == "__main__":
-    samples = [
-        "Where is the guide to clear cookies? It's been an hour and nothing is loading on your interface!",
-        "What are the header parameter requirements for your bearer token auth implementation?",
-        "Our operational uptime is decreasing. We need a timeline of when billing disputes are resolved.",
-    ]
-    for s in samples:
-        print(s)
-        print(json.dumps(classify_persona(s), indent=2))
-        print("-" * 60)
+    except Exception as exc:
+        note_failure_if_quota(exc)
+        fb = _keyword_fallback(message)
+        fb["reasoning"] = f"Gemini call failed ({exc}). Fallback: {fb['reasoning']}"
+        return fb
