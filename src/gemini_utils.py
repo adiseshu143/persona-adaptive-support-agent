@@ -10,7 +10,11 @@ This is the SINGLE place that owns:
     we stop burning further requests against it for a while and let
     callers fall back immediately instead of retrying into a wall.
 """
+from src import config
 
+print("CONFIG FILE:", config.__file__)
+print("HAS RETRIES:", hasattr(config, "GEMINI_MAX_RETRIES"))
+print("CONFIG ATTRS:", dir(config))
 import time
 import threading
 
